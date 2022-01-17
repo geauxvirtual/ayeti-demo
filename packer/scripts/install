@@ -105,6 +105,8 @@ function fetch_vault_binary {
 
 function install_dependencies {
     # Using Ubunut/Debian for demo purposes
+    # Since this script is being run during a Packer build, wait for cloud-init to finish.
+    cloud-init status --wait
     sudo apt-get update -y
     sudo apt-get install -y curl unzip
 }
