@@ -36,7 +36,7 @@ function create_service_account {
     if user_exists "$username"; then
         echo "User $username already exists. Will not create again"
     else
-        sudo useradd "$username"
+        sudo adduser "$username"
     fi
 }
 
