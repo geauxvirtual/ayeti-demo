@@ -16,6 +16,12 @@ variable "region" {
   type = string
 }
 
+variable "demo_ami" {
+  description = "AMI to use for demo"
+  default = "ami-059cd301f2f1c6ce3"
+  type = string
+}
+
 # Set up the region in the AWS provider.
 provider "aws" {
   region = var.region
@@ -110,6 +116,22 @@ resource "aws_security_group" "demo-service" {
      cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "Allow LAN SERF"
+    from_port = 8301
+    to_port = 8301
+    protocol = "tcp"
+    cidr_blocks = ["10.0.1.0/24"]
+  }
+
+  ingress {
+    description = "Allow Server RPC"
+    from_port = 8300
+    to_port = 8300
+    protocol = "tcp"
+    cidr_blocks = ["10.0.1.0/24"]
+  }
+
   egress {
     from_port = 0
     to_port = 0
@@ -192,6 +214,16 @@ resource "aws_network_interface" "node1" {
   }
 }
 
+data "template_file" "node1_consul_config" {
+  template = file("./configs/node-consul.hcl")
+  vars = {
+    node_name = "node1"
+    node_ip = "10.0.1.10"
+    node_a_name = "node2"
+    node_b_name = "node3"
+  }
+}
+
 data "template_file" "node1_cloud_init" {
   template = file("./cloud-init/service-node-cloud-init")
   vars = {
@@ -200,11 +232,12 @@ data "template_file" "node1_cloud_init" {
     node_cert = "${indent(4, data.local_file.node_cert.content)}"
     node_priv_key = "${indent(4, data.local_file.node_priv_key.content)}"
     fqdn = "node1.example.local"
+    consul_config = "${indent(4, data.template_file.node1_consul_config.rendered)}"
   }
 }
 
 resource "aws_instance" "node1" {
-  ami = "ami-0149f0001f48a7a19"
+  ami = var.demo_ami
   instance_type = "t2.micro"
   availability_zone = "us-west-2a"
   network_interface {
@@ -227,6 +260,16 @@ resource "aws_network_interface" "node2" {
   }
 }
 
+data "template_file" "node2_consul_config" {
+  template = file("./configs/node-consul.hcl")
+  vars = {
+    node_name = "node2"
+    node_ip = "10.0.1.11"
+    node_a_name = "node1"
+    node_b_name = "node3"
+  }
+}
+
 data "template_file" "node2_cloud_init" {
   template = file("./cloud-init/service-node-cloud-init")
   vars = {
@@ -235,11 +278,12 @@ data "template_file" "node2_cloud_init" {
     node_cert = "${indent(4, data.local_file.node_cert.content)}"
     node_priv_key = "${indent(4, data.local_file.node_priv_key.content)}"
     fqdn = "node2.example.local"
+    consul_config = "${indent(4, data.template_file.node2_consul_config.rendered)}"
   }
 }
 
 resource "aws_instance" "node2" {
-  ami = "ami-0149f0001f48a7a19"
+  ami = var.demo_ami
   instance_type = "t2.micro"
   availability_zone = "us-west-2a"
   network_interface {
@@ -262,6 +306,16 @@ resource "aws_network_interface" "node3" {
   }
 }
 
+data "template_file" "node3_consul_config" {
+  template = file("./configs/node-consul.hcl")
+  vars = {
+    node_name = "node3"
+    node_ip = "10.0.1.12"
+    node_a_name = "node1"
+    node_b_name = "node2"
+  }
+}
+
 data "template_file" "node3_cloud_init" {
   template = file("./cloud-init/service-node-cloud-init")
   vars = {
@@ -270,11 +324,12 @@ data "template_file" "node3_cloud_init" {
     node_cert = "${indent(4, data.local_file.node_cert.content)}"
     node_priv_key = "${indent(4, data.local_file.node_priv_key.content)}"
     fqdn = "node3.example.local"
+    consul_config = "${indent(4, data.template_file.node3_consul_config.rendered)}"
   }
 }
 
 resource "aws_instance" "node3" {
-  ami = "ami-0149f0001f48a7a19"
+  ami = var.demo_ami
   instance_type = "t2.micro"
   availability_zone = "us-west-2a"
   network_interface {

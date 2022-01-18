@@ -21,6 +21,14 @@ bootcmd:
   - echo 10.0.1.12 node3.example.local node3 >> /etc/hosts
   - echo 10.0.1.20 web.example.local web >> /etc/hosts
 
+runcmd:
+  - sleep 15
+  - echo 'export CONSUL_HTTP_ADDR=https://${fqdn}:8501' >> /home/demoserviceaccount/.bashrc
+  - echo 'export CONSUL_CACERT=/opt/services/certs/ca_chain.cert.pem' >> /home/demoserviceaccount/.bashrc
+  - echo 'export CONSUL_CLIENT_CERT=/opt/services/certs/node.example.local.cert.pem' >> /home/demoserviceaccount/.bashrc
+  - echo 'export CONSUL_CLIENT_KEY=/opt/services/certs/node.example.local.key.pem' >> /home/demoserviceaccount/.bashrc
+  - consul agent -config-dir /opt/services/consul/config > /dev/null 2>&1 &
+
 write_files:
 - content: |
     ${ca_chain}
@@ -37,3 +45,8 @@ write_files:
   path: /opt/services/certs/node.example.local.key.pem
   owner: demoserviceaccount:demoserviceaccount
   permissions: '0400'
+- content: |
+    ${consul_config}
+  path: /opt/services/consul/config/config.hcl
+  owner: demoserviceaccount:demoserviceaccount
+  permissions: '0444'
