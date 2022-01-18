@@ -1,0 +1,39 @@
+#cloud-config
+groups:
+  - ubuntu: [root, sys]
+  - demoserviceaccount
+
+# Our demo service account already exists in the AMI, so just update
+# some settings for accessing the node
+users:
+  - default
+  - name: demoserviceaccount
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    ssh_authorized_keys:
+      - ${ssh_pub_key}
+
+fqdn: ${fqdn}
+
+bootcmd:
+  - echo 10.0.1.10 node1.example.local node1 >> /etc/hosts
+  - echo 10.0.1.11 node2.example.local node2 >> /etc/hosts
+  - echo 10.0.1.12 node3.example.local node3 >> /etc/hosts
+  - echo 10.0.1.20 web.example.local web >> /etc/hosts
+
+write_files:
+- content: |
+    ${ca_chain}
+  path: /opt/services/certs/ca_chain.cert.pem
+  owner: demoserviceaccount:demoserviceaccount
+  permissions: '0444'
+- content: |
+    ${node_cert}
+  path: /opt/services/certs/node.example.local.cert.pem
+  owner: demoserviceaccount:demoserviceaccount
+  permissions: '0444'
+- content: |
+    ${node_priv_key}
+  path: /opt/services/certs/node.example.local.key.pem
+  owner: demoserviceaccount:demoserviceaccount
+  permissions: '0400'

@@ -46,6 +46,8 @@ resource "aws_vpc" "vpc" {
 resource "aws_subnet" "demo_subnet" {
   vpc_id = aws_vpc.vpc.id
   cidr_block = "10.0.1.0/24"
+  availability_zone = "us-west-2a"
+  map_public_ip_on_launch = true
   tags = {
     Name = "demo-subnet-1"
   }
@@ -154,3 +156,146 @@ resource "aws_security_group" "demo-web-service" {
   }
 }
 
+############## Instance Configurations #################
+# For demo purposes, we want to be able to SSH into our instances with a preset key.
+# A key has been generated on the local computer, so let's load that into a variable.
+# This could be defined as a variable that could easily be changed.
+data "local_file" "ssh_pub_key" {
+  filename = "../ssh/service-account.pub"
+}
+
+# There are certificate files we want to use to secure Vault and Consul.
+# The same certs will be used to secure the UIs via HTTPs and the Vault
+# to Consul communications.
+# There does seem to be open issues around supporting sensitive_content with
+# local_file dating back to 2018.
+data "local_file" "ca_chain" {
+  filename = "../tls/root/ca/intermediate/certs/ca-chain.cert.pem"
+}
+
+data "local_file" "node_cert" {
+  filename = "../tls/root/ca/intermediate/certs/node.example.local.cert.pem"
+}
+
+data "local_file" "node_priv_key" {
+  filename = "../tls/root/ca/intermediate/private/node.example.local.key.pem"
+}
+
+# 3 instances are going to be configued, each with a cloud-init file.
+# Our packer generated Ubuntu Server 20.04 ami ami-0149f0001f48a7a19
+resource "aws_network_interface" "node1" {
+  subnet_id = aws_subnet.demo_subnet.id
+  private_ips = ["10.0.1.10"]
+  security_groups = [aws_security_group.demo-service.id]
+  tags = {
+    Name = "node1_network_interface"
+  }
+}
+
+data "template_file" "node1_cloud_init" {
+  template = file("./cloud-init/service-node-cloud-init")
+  vars = {
+    ssh_pub_key = "${data.local_file.ssh_pub_key.content}"
+    ca_chain = "${indent(4, data.local_file.ca_chain.content)}"
+    node_cert = "${indent(4, data.local_file.node_cert.content)}"
+    node_priv_key = "${indent(4, data.local_file.node_priv_key.content)}"
+    fqdn = "node1.example.local"
+  }
+}
+
+resource "aws_instance" "node1" {
+  ami = "ami-0149f0001f48a7a19"
+  instance_type = "t2.micro"
+  availability_zone = "us-west-2a"
+  network_interface {
+    network_interface_id = aws_network_interface.node1.id
+    device_index = 0
+  }
+  user_data = data.template_file.node1_cloud_init.rendered
+
+  tags = {
+    Name = "node1.example.local"
+  }
+}
+
+resource "aws_network_interface" "node2" {
+  subnet_id = aws_subnet.demo_subnet.id
+  private_ips = ["10.0.1.11"]
+  security_groups = [aws_security_group.demo-service.id]
+  tags = {
+    Name = "node2_network_interface"
+  }
+}
+
+data "template_file" "node2_cloud_init" {
+  template = file("./cloud-init/service-node-cloud-init")
+  vars = {
+    ssh_pub_key = "${data.local_file.ssh_pub_key.content}"
+    ca_chain = "${indent(4, data.local_file.ca_chain.content)}"
+    node_cert = "${indent(4, data.local_file.node_cert.content)}"
+    node_priv_key = "${indent(4, data.local_file.node_priv_key.content)}"
+    fqdn = "node2.example.local"
+  }
+}
+
+resource "aws_instance" "node2" {
+  ami = "ami-0149f0001f48a7a19"
+  instance_type = "t2.micro"
+  availability_zone = "us-west-2a"
+  network_interface {
+    network_interface_id = aws_network_interface.node2.id
+    device_index = 0
+  }
+  user_data = data.template_file.node2_cloud_init.rendered
+
+  tags = {
+    Name = "node2.example.local"
+  }
+}
+
+resource "aws_network_interface" "node3" {
+  subnet_id = aws_subnet.demo_subnet.id
+  private_ips = ["10.0.1.12"]
+  security_groups = [aws_security_group.demo-service.id]
+  tags = {
+    Name = "node3_network_interface"
+  }
+}
+
+data "template_file" "node3_cloud_init" {
+  template = file("./cloud-init/service-node-cloud-init")
+  vars = {
+    ssh_pub_key = "${data.local_file.ssh_pub_key.content}"
+    ca_chain = "${indent(4, data.local_file.ca_chain.content)}"
+    node_cert = "${indent(4, data.local_file.node_cert.content)}"
+    node_priv_key = "${indent(4, data.local_file.node_priv_key.content)}"
+    fqdn = "node3.example.local"
+  }
+}
+
+resource "aws_instance" "node3" {
+  ami = "ami-0149f0001f48a7a19"
+  instance_type = "t2.micro"
+  availability_zone = "us-west-2a"
+  network_interface {
+    network_interface_id = aws_network_interface.node3.id
+    device_index = 0
+  }
+  user_data = data.template_file.node3_cloud_init.rendered
+
+  tags = {
+    Name = "node3.example.local"
+  }
+}
+
+output "node1_public_ip" {
+  value = aws_instance.node1.public_ip
+}
+
+output "node2_public_ip" {
+  value = aws_instance.node2.public_ip
+}
+
+output "node3_public_ip" {
+  value = aws_instance.node3.public_ip
+}
