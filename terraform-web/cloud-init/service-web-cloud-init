@@ -1,0 +1,79 @@
+#cloud-config
+groups:
+  - ubuntu: [root, sys]
+  - demoserviceaccount
+
+# Our demo service account already exists in the AMI, so just update
+# some settings for accessing the node
+users:
+  - default
+  - name: demoserviceaccount
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    ssh_authorized_keys:
+      - ${ssh_pub_key}
+
+fqdn: ${fqdn}
+
+bootcmd:
+  - echo 10.0.1.10 node1.example.local node1 >> /etc/hosts
+  - echo 10.0.1.11 node2.example.local node2 >> /etc/hosts
+  - echo 10.0.1.12 node3.example.local node3 >> /etc/hosts
+  - echo 10.0.1.20 web.example.local web >> /etc/hosts
+
+runcmd:
+  - sleep 15
+  - echo 'export CONSUL_CACERT=/opt/services/certs/ca_chain.cert.pem' >> /home/demoserviceaccount/.bashrc
+  - echo 'export CONSUL_CLIENT_CERT=/opt/services/certs/node.example.local.cert.pem' >> /home/demoserviceaccount/.bashrc
+  - echo 'export CONSUL_CLIENT_KEY=/opt/services/certs/node.example.local.key.pem' >> /home/demoserviceaccount/.bashrc
+  - echo 'export VAULT_ADDR=https://${vault_addr}:8200' >> /home/demoserviceaccount/.bashrc
+  - echo 'export VAULT_CACERT=$CONSUL_CACERT' >> /home/demoserviceaccount/.bashrc
+  - echo 'export VAULT_CLIENT_CERT=$CONSUL_CLIENT_CERT' >> /home/demoserviceaccount/.bashrc
+  - echo 'export VAULT_CLIENT_KEY=$CONSUL_CLIENT_KEY' >> /home/demoserviceaccount/.bashrc
+  - mkdir -p /var/www/nginx-default
+  - systemctl daemon-reload
+  - systemctl enable consul-template.service
+  - systemctl restart consul-template.service
+
+write_files:
+- content: |
+    ${ca_chain}
+  path: /opt/services/certs/ca_chain.cert.pem
+  owner: demoserviceaccount:demoserviceaccount
+  permissions: '0444'
+- content: |
+    ${node_cert}
+  path: /opt/services/certs/node.example.local.cert.pem
+  owner: demoserviceaccount:demoserviceaccount
+  permissions: '0444'
+- content: |
+    ${node_priv_key}
+  path: /opt/services/certs/node.example.local.key.pem
+  owner: demoserviceaccount:demoserviceaccount
+  permissions: '0400'
+- content: |
+    ${consul_template_config}
+  path: /opt/services/consul-template/config/config.hcl
+  owner: demoserviceaccount:demoserviceaccount
+  permissions: '0444'
+- content: |
+    ${consul_template_systemd_config}
+  path: /etc/systemd/system/consul-template.service
+  owner: root:root
+  permissions: '0644'
+- content: |
+    ${nginx_default}
+  path: /etc/nginx/sites-enabled/default
+  owner: root:root
+  permissions: '0644'
+- content: |
+    ${vault_token}
+  path: /tmp/vault_token
+  owner: demoserviceaccount:demoserviceaccount
+  permissions: '0444'
+- content: |
+    ${demo_index_html}
+  path: /var/www/nginx-default/index.html
+  permissions: '0644'
+  owner: root:root
+

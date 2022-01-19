@@ -1,0 +1,19 @@
+[Unit]
+Description="Hashicorp Consul-Template"
+Requires=network-online.target
+After=network-online.target
+ConditionFileNotEmpty=/opt/services/consul-template/config/config.hcl
+
+[Service]
+Type=notify
+User=root
+Group=root
+ExecStart=/usr/local/bin/consul-template -config /opt/services/consul-template/config/config.hcl
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+TimeoutSec=300s
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
