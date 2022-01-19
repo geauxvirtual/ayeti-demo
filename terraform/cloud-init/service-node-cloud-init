@@ -27,7 +27,15 @@ runcmd:
   - echo 'export CONSUL_CACERT=/opt/services/certs/ca_chain.cert.pem' >> /home/demoserviceaccount/.bashrc
   - echo 'export CONSUL_CLIENT_CERT=/opt/services/certs/node.example.local.cert.pem' >> /home/demoserviceaccount/.bashrc
   - echo 'export CONSUL_CLIENT_KEY=/opt/services/certs/node.example.local.key.pem' >> /home/demoserviceaccount/.bashrc
-  - consul agent -config-dir /opt/services/consul/config > /dev/null 2>&1 &
+  - echo 'export VAULT_ADDR=https://${fqdn}:8200' >> /home/demoserviceaccount/.bashrc
+  - echo 'export VAULT_CACERT=$CONSUL_CACERT' >> /home/demoserviceaccount/.bashrc
+  - echo 'export VAULT_CLIENT_CERT=$CONSUL_CLIENT_CERT' >> /home/demoserviceaccount/.bashrc
+  - echo 'export VAULT_CLIENT_KEY=$CONSUL_CLIENT_KEY' >> /home/demoserviceaccount/.bashrc
+  - systemctl daemon-reload
+  - systemctl enable consul.service
+  - systemctl restart consul.service
+  - systemctl enable vault.service
+  - systemctl restart vault.service
 
 write_files:
 - content: |
@@ -50,3 +58,18 @@ write_files:
   path: /opt/services/consul/config/config.hcl
   owner: demoserviceaccount:demoserviceaccount
   permissions: '0444'
+- content: |
+    ${consul_systemd_config}
+  path: /etc/systemd/system/consul.service
+  owner: root:root
+  permissions: '0644'
+- content: |
+    ${vault_config}
+  path: /opt/services/vault/config/config.hcl
+  owner: demoserviceaccount:demoserviceaccount
+  permissions: '0444'
+- content: |
+    ${vault_systemd_config}
+  path: /etc/systemd/system/vault.service
+  owner: root:root
+  permissions: '0644'

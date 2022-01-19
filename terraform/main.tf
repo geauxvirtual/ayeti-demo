@@ -110,10 +110,18 @@ resource "aws_security_group" "demo-service" {
 
   ingress {
      description = "Allow HTTPS to Vault"
+     from_port = 8200
+     to_port = 8200
+     protocol = "tcp"
+     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+     description = "Allow HTTPS Vault to Vault"
      from_port = 8201
      to_port = 8201
      protocol = "tcp"
-     cidr_blocks = ["0.0.0.0/0"]
+     cidr_blocks = ["10.0.1.0/24"]
   }
 
   ingress {
@@ -178,6 +186,60 @@ resource "aws_security_group" "demo-web-service" {
   }
 }
 
+# Vault AWS KMS key setup
+data "aws_iam_policy_document" "assume_role" {
+  statement {
+    effect = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "vault-kms-unseal" {
+  statement {
+    sid = "VaultKMSUnseal"
+    effect = "Allow"
+    resources = ["*"]
+
+    actions = [
+      "kms:Encrypt",
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "ec2:DescribeInstances",
+    ]
+  }
+}
+
+resource "aws_iam_role" "vault-kms-unseal" {
+  name = "vault-kms-role-demo-1"
+  assume_role_policy = "${data.aws_iam_policy_document.assume_role.json}"
+}
+
+resource "aws_iam_role_policy" "vault-kms-unseal" {
+  name = "Vault-KMS-Unseal-demo-1"
+  role = "${aws_iam_role.vault-kms-unseal.id}"
+  policy = "${data.aws_iam_policy_document.vault-kms-unseal.json}"
+}
+
+resource "aws_iam_instance_profile" "vault-kms-unseal" {
+  name = "vault-kms-unseal-demo-1"
+  role = "${aws_iam_role.vault-kms-unseal.name}"
+}
+
+resource "aws_kms_key" "vault" {
+  description = "Vault unseal key"
+  deletion_window_in_days = 10
+
+  tags = {
+    Name = "vault-kms-unseal-demo-1"
+  }
+}
+
+
 ############## Instance Configurations #################
 # For demo purposes, we want to be able to SSH into our instances with a preset key.
 # A key has been generated on the local computer, so let's load that into a variable.
@@ -203,6 +265,14 @@ data "local_file" "node_priv_key" {
   filename = "../tls/root/ca/intermediate/private/node.example.local.key.pem"
 }
 
+data "local_file" "node_consul_systemd_config" {
+  filename = "./configs/node-consul-systemd-config"
+}
+
+data "local_file" "node_vault_systemd_config" {
+  filename = "./configs/node-vault-systemd-config"
+}
+
 # 3 instances are going to be configued, each with a cloud-init file.
 # Our packer generated Ubuntu Server 20.04 ami ami-0149f0001f48a7a19
 resource "aws_network_interface" "node1" {
@@ -224,6 +294,16 @@ data "template_file" "node1_consul_config" {
   }
 }
 
+data "template_file" "node1_vault_config" {
+  template = file("./configs/node-vault-config.hcl")
+  vars = {
+    node_ip = "10.0.1.10"
+    fqdn = "node1.example.local"
+    region = var.region
+    aws_kms_key = aws_kms_key.vault.id
+  }
+}
+
 data "template_file" "node1_cloud_init" {
   template = file("./cloud-init/service-node-cloud-init")
   vars = {
@@ -233,6 +313,9 @@ data "template_file" "node1_cloud_init" {
     node_priv_key = "${indent(4, data.local_file.node_priv_key.content)}"
     fqdn = "node1.example.local"
     consul_config = "${indent(4, data.template_file.node1_consul_config.rendered)}"
+    consul_systemd_config = "${indent(4, data.local_file.node_consul_systemd_config.content)}"
+    vault_config = "${indent(4, data.template_file.node1_vault_config.rendered)}"
+    vault_systemd_config = "${indent(4, data.local_file.node_vault_systemd_config.content)}"
   }
 }
 
@@ -240,6 +323,7 @@ resource "aws_instance" "node1" {
   ami = var.demo_ami
   instance_type = "t2.micro"
   availability_zone = "us-west-2a"
+  iam_instance_profile = "${aws_iam_instance_profile.vault-kms-unseal.id}"
   network_interface {
     network_interface_id = aws_network_interface.node1.id
     device_index = 0
@@ -270,6 +354,16 @@ data "template_file" "node2_consul_config" {
   }
 }
 
+data "template_file" "node2_vault_config" {
+  template = file("./configs/node-vault-config.hcl")
+  vars = {
+    node_ip = "10.0.1.11"
+    fqdn = "node2.example.local"
+    region = var.region
+    aws_kms_key = aws_kms_key.vault.id
+  }
+}
+
 data "template_file" "node2_cloud_init" {
   template = file("./cloud-init/service-node-cloud-init")
   vars = {
@@ -279,6 +373,9 @@ data "template_file" "node2_cloud_init" {
     node_priv_key = "${indent(4, data.local_file.node_priv_key.content)}"
     fqdn = "node2.example.local"
     consul_config = "${indent(4, data.template_file.node2_consul_config.rendered)}"
+    consul_systemd_config = "${indent(4, data.local_file.node_consul_systemd_config.content)}"
+    vault_config = "${indent(4, data.template_file.node2_vault_config.rendered)}"
+    vault_systemd_config = "${indent(4, data.local_file.node_vault_systemd_config.content)}"
   }
 }
 
@@ -286,6 +383,7 @@ resource "aws_instance" "node2" {
   ami = var.demo_ami
   instance_type = "t2.micro"
   availability_zone = "us-west-2a"
+  iam_instance_profile = "${aws_iam_instance_profile.vault-kms-unseal.id}"
   network_interface {
     network_interface_id = aws_network_interface.node2.id
     device_index = 0
@@ -316,6 +414,16 @@ data "template_file" "node3_consul_config" {
   }
 }
 
+data "template_file" "node3_vault_config" {
+  template = file("./configs/node-vault-config.hcl")
+  vars = {
+    node_ip = "10.0.1.12"
+    fqdn = "node3.example.local"
+    region = var.region
+    aws_kms_key = aws_kms_key.vault.id
+  }
+}
+
 data "template_file" "node3_cloud_init" {
   template = file("./cloud-init/service-node-cloud-init")
   vars = {
@@ -325,6 +433,9 @@ data "template_file" "node3_cloud_init" {
     node_priv_key = "${indent(4, data.local_file.node_priv_key.content)}"
     fqdn = "node3.example.local"
     consul_config = "${indent(4, data.template_file.node3_consul_config.rendered)}"
+    consul_systemd_config = "${indent(4, data.local_file.node_consul_systemd_config.content)}"
+    vault_config = "${indent(4, data.template_file.node3_vault_config.rendered)}"
+    vault_systemd_config = "${indent(4, data.local_file.node_vault_systemd_config.content)}"
   }
 }
 
@@ -332,6 +443,7 @@ resource "aws_instance" "node3" {
   ami = var.demo_ami
   instance_type = "t2.micro"
   availability_zone = "us-west-2a"
+  iam_instance_profile = "${aws_iam_instance_profile.vault-kms-unseal.id}"
   network_interface {
     network_interface_id = aws_network_interface.node3.id
     device_index = 0
