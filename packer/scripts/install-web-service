@@ -1,0 +1,166 @@
+#!/bin/bash
+
+# This is a simple Bash script to install a Consul or Vault binary to a node
+# with specific directory structure.
+# Root dir - /opt/services
+# Certs dir - /opt/services/certs
+# Consul dir - /opt/services/consul/{bin, config, data}
+# Vault dir - /opt/services/vault/{bin, config}
+
+# Structure for this script inspired from 
+# https://github.com/hashicorp/terraform-aws-consul/blob/master/modules/install-consul/install-consul
+
+# This script will set up the directory structure, add the service account, and download the packages
+# to the specified directories.
+
+set -e
+
+readonly DEFAULT_SERVICES_USER="demoserviceaccount"
+readonly DEFAULT_SERVICES_PATH="/opt/services"
+readonly DEFAULT_SERVICES_CERTS="/opt/services/certs"
+readonly DEFAULT_CONSUL_TEMPLATE_INSTALL_PATH="/opt/services/consul-template"
+
+readonly SYSTEM_BIN_DIR="/usr/local/bin"
+readonly CONSUL_TEMPLATE_DOWNLOAD_PATH="/tmp/consul-template.zip"
+
+function user_exists {
+    local -r username="$1"
+    id "$username" >/dev/null 2>&1
+}
+
+function create_service_account {
+    local -r username="$1"
+
+    if user_exists "$username"; then
+        echo "User $username already exists. Will not create again"
+    else
+        sudo adduser "$username"
+    fi
+}
+
+function create_services_install_path {
+    local -r path="$1"
+    local -r username="$2"
+
+    sudo mkdir -p "$path"
+    sudo mkdir -p "$path/certs"
+
+    sudo chown -R "$username:$username" "$path"
+}
+
+function create_consul_template_install_path {
+    local -r path="$1"
+    local -r username="$2"
+
+    sudo mkdir -p "$path"
+    sudo mkdir -p "$path"/{bin,config}
+
+    sudo chown -R "$username:$username" "$path"
+}
+
+function retry {
+    local -r cmd="$1"
+    
+    for i in $(seq 1 5); do
+        output=$(eval "$cmd") && exit_status=0 || exit_status=$?
+        if [[ $exit_status -eq 0 ]]; then
+            echo "$output"
+            return
+        fi
+        sleep 10
+    done;
+
+    echo "Failed to download binary after 5 attempts"
+    exit $exit_status
+}
+
+# Since this is a demo script, we're only concerning ourself with x86_64 architectures
+function fetch_consul_template_binary {
+    local -r version="$1"
+
+    download_url="https://releases.hashicorp.com/consul-template/${version}/consul-template_${version}_linux_amd64.zip"
+    echo $download_url
+    retry \
+        "curl -o '$CONSUL_TEMPLATE_DOWNLOAD_PATH' '$download_url' --location --silent --fail --show-error"
+}
+
+function install_dependencies {
+    # Using Ubunut/Debian for demo purposes
+    # Since this script is being run during a Packer build, wait for cloud-init to finish.
+    cloud-init status --wait
+    sudo apt-get update -y
+    sudo apt-get install -y curl unzip nginx
+}
+
+function install_binary {
+    local -r binary="$1"
+    local -r install_path="$2"
+    local -r username="$3"
+
+    local -r bin_dir="$install_path/bin"
+    local -r binary_dest_path="$bin_dir/$binary"
+
+    unzip -d /tmp "/tmp/$binary"
+    sudo mv "/tmp/$binary" "$binary_dest_path"
+    sudo chown "$username:$username" "$binary_dest_path"
+    sudo chmod a+x "$binary_dest_path"
+
+    local -r symlink_path="$SYSTEM_BIN_DIR/$binary"
+    if [[ -f "$symlink_path" ]]; then
+        echo "Symlink already exists. Will not add again"
+    else
+        sudo ln -s "$binary_dest_path" "$symlink_path"
+    fi
+}
+
+function install {
+    local app=""
+    local version=""
+
+    while [[ $# -gt 0 ]]; do
+        local key="$1"
+        case "$key" in 
+            --app)
+                app="$2"
+                shift
+                ;;
+            --version)
+                version="$2"
+                shift
+                ;;
+            *)
+                exit 1
+                ;;
+        esac
+        shift
+    done
+
+    if [[ -z "$app" ]]; then
+        echo "--app cannot be empty"
+        exit 1
+    fi
+
+    if [[ -z "$version" ]]; then
+        echo "--version cannot be empty"
+        exit 1
+    fi
+
+    install_dependencies
+    create_service_account $DEFAULT_SERVICES_USER
+    create_services_install_path $DEFAULT_SERVICES_PATH $DEFAULT_SERVICES_USER
+    
+    case $app in
+        consul-template)
+            create_consul_template_install_path $DEFAULT_CONSUL_TEMPLATE_INSTALL_PATH $DEFAULT_SERVICES_USER
+            fetch_consul_template_binary $version
+            install_binary consul-template $DEFAULT_CONSUL_TEMPLATE_INSTALL_PATH $DEFAULT_SERVICES_USER
+            ;;
+        *)
+            echo "Unknown app"
+            exit 1
+            ;;
+    esac
+}
+
+install "$@"
+    
