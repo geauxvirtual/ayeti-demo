@@ -152,39 +152,6 @@ resource "aws_security_group" "demo-service" {
   }
 }
 
-# Create NGNIX security group
-resource "aws_security_group" "demo-web-service" {
-  name = "demo-web-service"
-  description = "Allow HTTPS access to NGINX"
-  vpc_id = aws_vpc.vpc.id
-  
-  ingress {
-    description = "Allow SSH"
-    from_port = 22
-    to_port = 22
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "Allow HTTPS"
-    from_port = 443
-    to_port = 443
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port = 0
-    to_port = 0
-    protocol = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  
-  tags = {
-    Name = "demo-web-security-group-1"
-  }
-}
 
 # Vault AWS KMS key setup
 data "aws_iam_policy_document" "assume_role" {
