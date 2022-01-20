@@ -70,7 +70,7 @@ path "pki/isssue/example-local" {
 }
 ```
 
-Create a Vault token for the demo. For the demo, we'll just create a token, store it in a i`.vault_token` file in the terraform-web directory to be read by terraform, and created in the /tmp directory of the web service. A better solution would be to store the token in AWS and give the instance approrpriate rights to read the token such as what is done with awskms seal/unseal solution.
+Create a Vault token for the demo. For the demo, we'll just create a token, store it a `.vault_token_for_demo` file in the terraform-web directory to be read by terraform, and created in the /tmp directory of the web service. A better solution would be to store the token in AWS and give the instance approrpriate rights to read the token such as what is done with awskms seal/unseal solution.
 ```
 vault token craate -policy="pki" -period=96h -orphan
 ```
