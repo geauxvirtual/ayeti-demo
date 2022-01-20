@@ -433,3 +433,11 @@ output "node2_public_ip" {
 output "node3_public_ip" {
   value = aws_instance.node3.public_ip
 }
+
+output "vpc_id" {
+  value = aws_vpc.vpc.id
+}
+
+output "demo_subnet_id" {
+  value = aws_subnet.demo_subnet.id
+}
