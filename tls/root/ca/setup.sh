@@ -77,7 +77,7 @@ openssl ca -config openssl.cnf -extensions v3_intermediate_ca \
     -days 3650 -notext -md sha256 \
     -in intermediate/csr/intermediate.csr.pem \
     -out intermediate/certs/intermediate.cert.pem
-chmod 444 intermediate/csr/intermediate.cert.pem
+chmod 444 intermediate/certs/intermediate.cert.pem
 
 # Chain the RootCA with the Intermediate CA
 cat intermediate/certs/intermediate.cert.pem certs/ca.cert.pem > intermediate/certs/ca-chain.cert.pem
