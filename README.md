@@ -85,8 +85,9 @@ terraform apply
 ```
 
 The nodes have statically assigned IP addresses and dns names.
+```
 node1.example.local - 10.0.1.10
 node2.example.local - 10.0.1.11
 node3.example.local - 10.0.1.12
 web.example.local   - 10.0.1.20
-
+```
