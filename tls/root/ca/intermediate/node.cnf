@@ -1,0 +1,35 @@
+# OpenSSL intermediate CA configuration file.
+# Copy to `/root/ca/intermediate/openssl.cnf`.
+[ req ]
+# Options for the `req` tool (`man req`).
+default_bits        = 2048
+prompt              = no
+distinguished_name  = req_distinguished_name
+string_mask         = utf8only
+
+# SHA-1 is deprecated, so use SHA-2 instead.
+default_md          = sha256
+
+# Extension to add when the -x509 option is used.
+x509_extensions     = req_ext
+req_extensions      = req_ext
+
+[ req_distinguished_name ]
+# See <https://en.wikipedia.org/wiki/Certificate_signing_request>.
+C=US
+ST=Oregon
+O=Example
+OU=Example Node
+CN=node.example.local
+emailAddress=node@example.local
+
+[ req_ext ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = node1.example.local
+DNS.2 = node2.example.local
+DNS.3 = node3.example.local
+IP.1 = 10.0.1.10
+IP.2 = 10.0.1.11
+IP.3 = 10.0.1.12
