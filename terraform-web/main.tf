@@ -94,23 +94,17 @@ data "template_file" "web_cloud_init" {
   }
 }
 
-# Very fragile at the moment. Need to use existing resources dynammically
-variable "demo_subnet_id" {
-  description = "demo subnet"
-  default = "subnet-0d1342e7c6cf6b3af"
-  type = string
-}
-
-variable "vpc_id" {
-  description = "demo vpc"
-  default = "vpc-053b911415ea9db28"
+locals {
+  terraform_tfstate = jsondecode(file("../terraform/terraform.tfstate"))
+  demo_subnet_id = local.terraform_tfstate.outputs.demo_subnet_id.value
+  vpc_id = local.terraform_tfstate.outputs.vpc_id.value
 }
 
 # Create NGNIX security group
 resource "aws_security_group" "demo-web-service" {
   name = "demo-web-service"
   description = "Allow HTTPS access to NGINX"
-  vpc_id = var.vpc_id
+  vpc_id = local.vpc_id
 
   ingress {
     description = "Allow SSH"
@@ -141,7 +135,7 @@ resource "aws_security_group" "demo-web-service" {
 }
 
 resource "aws_network_interface" "web" {
-  subnet_id = var.demo_subnet_id
+  subnet_id = local.demo_subnet_id
   private_ips = ["10.0.1.20"]
   security_groups = [aws_security_group.demo-web-service.id]
   tags = {
